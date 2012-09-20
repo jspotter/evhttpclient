@@ -5,6 +5,20 @@
  * remote hosts in response to a request, and responds
  * only when each request has received a response or
  * timed out.
+ *
+ * To run from the top directory, type
+ *
+ * $ tests/server [port]
+ *
+ * If you do not specify a port, it will default to
+ * port 8000.
+ *
+ * When running, wait for it to print "Listening on 
+ * port [port]." From another tab, type:
+ *
+ * $ curl http://127.0.0.1:[port]/
+ *
+ * This should result in 
  */
 
 #include <strings.h>
@@ -44,6 +58,7 @@ static int total_responses = 0;
 
 static vector<EvHttpClient *> clients;
 
+/* Struct to keep track of how many responses we have received. */
 typedef struct ReqInfo_
 {
 	int fd;
@@ -52,6 +67,8 @@ typedef struct ReqInfo_
 	int expected_num_responses;
 } ReqInfo;
 
+/* Keep track of how many responses we have been receiving on
+ * each request. */
 void update_stats(int num_responses)
 {
 	total_responses++;
@@ -75,6 +92,7 @@ void update_stats(int num_responses)
 	}
 }
 
+/* Callback when we get a response. */
 void response_callback(ResponseInfo *response, void *request_data,
 	void *client_data)
 {
@@ -102,6 +120,9 @@ void response_callback(ResponseInfo *response, void *request_data,
 	}
 }
 
+/* Callback for when the socket corresponsding to our new
+ * request becomes readable. This basically amounts to a new
+ * request happening. */
 static void read_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 {
 	ReqInfo *req_info = new ReqInfo();
@@ -114,6 +135,7 @@ static void read_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	}
 }
 
+/* Callback for when someone tries to connect to our server. */
 static void accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 {
 	struct sockaddr_in client_addr;
