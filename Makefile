@@ -38,5 +38,5 @@ tests/multiple_timeout:
 	$(CC) $(INCS) -o tests/multiple_timeout tests/multiple_timeout.cpp $(LIBS) $(CC_OPTS) $(CC_LINKS) -levhttpclient
 	
 tests/server:
-	$(CC) $(INCS) -o tests/server tests/server.cpp $(LIBS) $(CC_OPTS) $(CC_LINKS) -levhttpclient -lebb
+	$(CC) $(INCS) -o tests/server tests/server.cpp $(LIBS) $(CC_OPTS) $(CC_LINKS) -levhttpclient
 

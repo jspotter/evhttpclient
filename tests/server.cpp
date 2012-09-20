@@ -7,12 +7,13 @@
  * timed out.
  */
 
+#include <strings.h>
+#include <netinet/in.h>
 #include <iostream>
 #include <map>
 #include <vector>
 #include <stdio.h>
 #include <ev.h>
-#include <ebb.h>
 #include <evhttpclient.h>
 
 using namespace std;
@@ -22,16 +23,16 @@ using namespace std;
 
 static string urls[] =
 	{
-		"http://23.20.11.64?bidder=1",
-		"http://23.20.11.64?bidder=2",
-		"http://23.20.11.64?bidder=3",
-		"http://23.20.11.64?bidder=4",
-		"http://23.20.11.64?bidder=5",
-		"http://23.20.11.64?bidder=6",
-		"http://23.20.11.64?bidder=7",
-		"http://23.20.11.64?bidder=8",
-		"http://23.20.11.64?bidder=9",
-		"http://23.20.11.64?bidder=10"
+		"http://greenhondacivicsunite.com/",
+		"http://greenhondacivicsunite.com/",
+		"http://greenhondacivicsunite.com/",
+		"http://greenhondacivicsunite.com/",
+		"http://greenhondacivicsunite.com/",
+		"http://greenhondacivicsunite.com/",
+		"http://greenhondacivicsunite.com/",
+		"http://greenhondacivicsunite.com/",
+		"http://greenhondacivicsunite.com/",
+		"http://greenhondacivicsunite.com/"
 	};
 
 static int num_urls = 10;
@@ -45,7 +46,7 @@ static vector<EvHttpClient *> clients;
 
 typedef struct ReqInfo_
 {
-	ebb_connection *connection;
+	int fd;
 	vector<string> responses;
 	int num_responses;
 	int expected_num_responses;
@@ -74,11 +75,6 @@ void update_stats(int num_responses)
 	}
 }
 
-static void response_done(ebb_connection *connection)
-{
-	ebb_connection_schedule_close(connection);
-}
-
 void response_callback(ResponseInfo *response, void *request_data,
 	void *client_data)
 {
@@ -100,54 +96,50 @@ void response_callback(ResponseInfo *response, void *request_data,
 	{
 		int num_responses = req_info->responses.size();
 		update_stats(num_responses);
-  	ebb_connection_write(req_info->connection, MSG, sizeof MSG, response_done);
+		send(req_info->fd, MSG, sizeof MSG, 0);
+		close(req_info->fd);
 		delete req_info;
 	}
 }
 
-void on_close(ebb_connection *connection)
+static void read_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 {
-  free(connection);
-}
-
-static void request_complete(ebb_request *request)
-{
-  ebb_connection *connection = (ebb_connection *) request->data;
-
 	ReqInfo *req_info = new ReqInfo();
 	req_info->num_responses = 0;
 	req_info->expected_num_responses = num_urls;
-	req_info->connection = connection;
+	req_info->fd = watcher->fd;
 	for(int i = 0; i < num_urls; ++i)
 	{
 		clients[i]->makeGet(response_callback, "", map<string, string>(), req_info);
 	}
-
-  free(request);
 }
 
-static ebb_request* new_request(ebb_connection *connection)
+static void accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 {
-  ebb_request *request = (ebb_request *) malloc(sizeof(ebb_request));
-  ebb_request_init(request);
-  request->data = connection;
-  request->on_complete = request_complete;
-  return request;
-}
+	struct sockaddr_in client_addr;
+	socklen_t client_len = sizeof(client_addr);
+	int client_sd;
+	struct ev_io *w_client = (struct ev_io*) malloc (sizeof(struct ev_io));
+	bzero(w_client, sizeof(struct ev_io));
 
-ebb_connection* new_connection(ebb_server *server, struct sockaddr_in *addr)
-{
-  ebb_connection *connection = (ebb_connection *) malloc(sizeof(ebb_connection));
-  if(connection == NULL) {
-    return NULL;
-  }
+	if(EV_ERROR & revents)
+	{
+		perror("got invalid event");
+		return;
+	}
 
-  ebb_connection_init(connection);
-  connection->data = NULL;
-  connection->new_request = new_request;
-  connection->on_close = on_close;
-  
-  return connection;
+	// Accept client request
+	client_sd = accept(watcher->fd, (struct sockaddr *)&client_addr, &client_len);
+
+	if (client_sd < 0)
+	{
+		perror("accept error");
+		return;
+	}
+
+	// Initialize and start watcher to read client requests
+	ev_io_init(w_client, read_cb, client_sd, EV_READ);
+	ev_io_start(loop, w_client);
 }
 
 /* Main */
@@ -160,19 +152,51 @@ int main(int argc, char **argv)
 	}
 
 	struct ev_loop *loop = ev_default_loop(0);
-  ebb_server server;
 
-  ebb_server_init(&server, loop);
-  server.new_connection = new_connection;
-
+	// Initialize clients
+	cout << "Initializing clients..." << endl;
 	for(int i = 0; i < num_urls; ++i)
 	{
-		clients.push_back(new EvHttpClient(loop, urls[i], TIMEOUT, NULL));
+		clients.push_back(new EvHttpClient(loop, urls[i], TIMEOUT, NULL, 10));
 	}
 
-  cout << "Listening on port " << port << "." << endl;
-  ebb_server_listen_on_port(&server, port);
-  ev_loop(loop, 0);
+	// Create server socket
+	int sd;
+	if( (sd = socket(PF_INET, SOCK_STREAM, 0)) < 0 )
+	{
+		perror("server socket error");
+		return -1;
+	}
+
+	struct sockaddr_in addr;
+	bzero(&addr, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(port);
+	addr.sin_addr.s_addr = INADDR_ANY;
+
+	// Bind socket to address
+	if (bind(sd, (struct sockaddr*) &addr, sizeof(addr)) != 0)
+	{
+		perror("bind error");
+	}
+
+	// Start listing on the socket
+	if (listen(sd, 2) < 0)
+	{
+		perror("listen error");
+		return -1;
+	}
+
+	// Initialize and start a watcher to accepts client requests
+	struct ev_io w_accept;
+	ev_io_init(&w_accept, accept_cb, sd, EV_READ);
+	ev_io_start(loop, &w_accept);
+
+	cout << "Listening on port " << port << "." << endl;
+	while(1)
+	{
+		ev_loop(loop, 0);
+	}
 
 	return 0;
 }
