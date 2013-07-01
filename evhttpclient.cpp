@@ -190,7 +190,7 @@ EvHttpClient::~EvHttpClient()
 	{
 		HttpConn *conn = connections.front();
 		connections.pop();
-		delete conn;
+		destroyConnAndRequest(conn);
 	}
 }
 
@@ -387,8 +387,23 @@ void EvHttpClient::destroyConn(HttpConn *conn)
 	
 	ev_io_stop(loop, &conn->writeWatcher);
 	ev_io_stop(loop, &conn->readWatcher);
-	
+	http_parser_pause(&conn->parser, 1);
+
 	delete conn;
+}
+
+/*
+ * Disconnects and frees connection object.
+ *
+ * ALSO invokes finalizeTimeout on request if
+ * a request is attached.
+ */
+void EvHttpClient::destroyConnAndRequest(HttpConn *conn)
+{
+	if (conn->request != NULL)
+		finalizeTimeout(conn->request);
+	
+	destroyConn(conn);
 }
 
 /*
@@ -426,6 +441,7 @@ void EvHttpClient::returnConn(HttpConn *conn)
 {
 	ev_io_stop(loop, &conn->writeWatcher);
 	ev_io_stop(loop, &conn->readWatcher);
+	http_parser_pause(&conn->parser, 1);
 
 	connections.push(conn);
 }
@@ -558,9 +574,6 @@ void EvHttpClient::timeoutCb(struct ev_loop *loop, struct ev_timer *timer, int r
 	//ev_timer_stop(loop, timer); //handled in finalizeTimeout
 	if(conn != NULL)
 	{
-		ev_io_stop(loop, &conn->writeWatcher);
-		ev_io_stop(loop, &conn->readWatcher);
-		http_parser_pause(&conn->parser, 1);
 		destroyConn(conn);
 		request->conn = NULL;
 	}

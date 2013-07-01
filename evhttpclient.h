@@ -186,6 +186,7 @@ class EvHttpClient
 		void retryRequest(RequestInfo *request);
 		HttpConn *createConn();
 		void destroyConn(HttpConn *conn);
+		void destroyConnAndRequest(HttpConn *conn);
 		HttpConn *getConn();
 		void returnConn(HttpConn *conn);
 		void finalizeTimeout(RequestInfo *request);
