@@ -58,6 +58,7 @@ typedef struct Url_
 		advance(prot_i, prot_end.length());
 		string::const_iterator port_i = find(prot_i, url_s.end(), ':');
 		string::const_iterator path_i = min(find(prot_i, url_s.end(), '/'), find(prot_i, url_s.end(), '?'));
+		string::const_iterator next_i = (port_i == url_s.end() ? path_i : port_i);
 		if(port_i != url_s.end())
 		{
 			++port_i;
@@ -73,9 +74,9 @@ typedef struct Url_
 		{
 			port_ = 80;
 		}
-		
-		host_.reserve(distance(prot_i, path_i));
-		transform(prot_i, path_i,
+	
+		host_.reserve(distance(prot_i, next_i));
+		transform(prot_i, next_i,
 					back_inserter(host_),
 					ptr_fun<int,int>(tolower)); // host is icase
 		string::const_iterator query_i = find(path_i, url_s.end(), '?');
@@ -87,6 +88,18 @@ typedef struct Url_
 		{
 			path_ = "/";
 		}
+	}
+
+	string toString()
+	{
+		stringstream ss;
+		ss
+			<< "protocol: " << protocol_ << endl
+			<< "host: " << host_ << endl
+			<< "port: " << port_ << endl
+			<< "path: " << path_ << endl
+			<< "query: " << query_ << endl;
+		return ss.str();
 	}
 	
 private:
