@@ -1,3 +1,5 @@
+# NO LONGER SUPPORTED
+
 # evhttpclient
 
 An HTTP client in C++ that uses the [libev](http://software.schmorp.de/pkg/libev.html) event library.
