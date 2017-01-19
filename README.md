@@ -1,4 +1,6 @@
-# NO LONGER SUPPORTED
+# EDIT: NO LONGER SUPPORTED
+
+WARNING: I no longer maintain this code, and it almost certainly has issues. Using it is probably dangerous.
 
 # evhttpclient
 
@@ -13,12 +15,7 @@ An HTTP client in C++ that uses the [libev](http://software.schmorp.de/pkg/libev
 ### Installing libev
 
 ```
-$ wget http://dist.schmorp.de/libev/Attic/libev-4.11.tar.gz
-$ tar xzvf libev-4.11.tar.gz
-$ cd libev-4.11
-$ ./configure --prefix=/usr
-$ make
-$ sudo make install
+$ brew install libev
 ```
 
 ### Usage
